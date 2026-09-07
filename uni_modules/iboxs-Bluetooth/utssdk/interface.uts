@@ -1,0 +1,52 @@
+export type blueDevice={
+	name?:String,    //设备名称
+	address?:String, //地址
+	type?:Int,       //类型
+	uuids?:Any,      //UUID
+	rssi?:Int        //RSSI
+}
+
+//初始化
+export type Init=()=>Boolean;
+
+//检查蓝牙权限
+export type CheckBluetoothPermissions=(callback:(res:Boolean)=>Unit)=>void;
+//蓝牙状态检查并开启蓝牙
+export type CheckAndEnableBluetooth=(callback:(res:Boolean)=>Unit)=>void;
+//检查位置服务是否已开启
+export type IsLocationServiceEnabled=()=>Boolean;
+//设置蓝牙状态变化监听
+export type SetBluetoothStateCallback=(callback:(res:Boolean)=>Unit)=>void;
+//取消蓝牙状态变化监听
+export type CancelBluetoothStateCallback=()=>void;
+//设置蓝牙连接状态监听
+export type SetReceiveListener=(callback:(connected:Boolean,msg:String)=>Unit)=>void;
+//取消设置蓝牙连接状态监听
+export type CancelReceiveListener=()=>void;
+//开始扫描
+@UTSJS.keepAlive
+export type StartDiscovery=(includePaired: Boolean,callback: (res: blueDevice) => Unit) => Boolean;
+//检查设备是否已配对
+export type IsDevicePaired=(address:String)=>Boolean;
+//获取已配对设备
+export type GetPairedDevices=()=>blueDevice[];
+//停止扫描
+export type StopDiscovery=()=>Boolean;
+//设备配对
+export type PairDevice=(device:blueDevice,callback:(res:Boolean)=>Unit)=>Boolean;
+//连接设备
+export type ConnectDevice=(device:blueDevice,callback:(result:Boolean)=>Unit,keepActive:false)=>void;
+//发送数据
+export type SendData=(str:String)=>Unit;
+//发送ArrayBuffer数据
+export type SendBufferData=(data:ArrayBuffer)=>Unit;
+//设置接收数据监听
+export type SetDataReceiveListener=(lisener:(data:Any)=>Unit,returnArrayBuffer:Boolean)=>Unit;
+//开始监听并接收数据
+export type StartListeningForData=()=>Unit;
+//停止监听数据接收
+export type StopListeningForData=()=>void;
+//关闭连接并清理资源
+export type CloseConnection=()=>Boolean;
+//取消设备配对
+export type UnpairDevice=(device:blueDevice)=>Boolean;

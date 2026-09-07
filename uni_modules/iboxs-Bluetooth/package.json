@@ -1,0 +1,103 @@
+{
+  "id": "iboxs-Bluetooth",
+  "displayName": "安卓经典蓝牙",
+  "version": "1.3.1",
+  "description": "iboxs-Bluetooth",
+  "keywords": [
+    "安卓",
+    "蓝牙",
+    "经典蓝牙",
+    "蓝牙配对"
+],
+  "repository": "",
+  "engines": {
+    "HBuilderX": "^4.53",
+    "uni-app": "",
+    "uni-app-x": "^4.65"
+  },
+  "dcloudext": {
+    "type": "uts",
+    "sale": {
+      "regular": {
+        "price": "10.00"
+      },
+	  "sourcecode": {
+		"price": "118.00"
+		}
+    },
+    "contact": {
+      "qq": "320587491"
+    },
+    "declaration": {
+      "ads": "无",
+      "data": "插件不采集任何数据",
+      "permissions": "无    <uses-permission android:name=\"android.permission.INTERNET\"/>\n    <!-- 定位权限 -->\n    <uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\"/>\n    <uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\"/>\n    <uses-permission android:name=\"android.permission.ACCESS_LOCATION_EXTRA_COMMANDS\"/>\n    <uses-permission android:name=\"android.permission.ACCESS_MOCK_LOCATION\"/>\n\t<uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\" />\n\t<uses-permission android:name=\"android.permission.BLUETOOTH_ADVERTISE\" />\n\t<uses-permission android:name=\"android.permission.BLUETOOTH_CONNECT\" />"
+    },
+    "npmurl": "",
+    "darkmode": "√",
+    "i18n": "√",
+    "widescreen": "√"
+  },
+  "uni_modules": {
+    "dependencies": [],
+    "encrypt": [],
+    "platforms": {
+      "client": {
+        "uni-app": {
+          "vue": {
+            "vue2": "-",
+            "vue3": "-"
+          },
+          "web": {
+            "safari": "-",
+            "chrome": "-"
+          },
+          "app": {
+            "vue": "-",
+            "nvue": "-",
+            "android": "-",
+            "ios": "-",
+            "harmony": "-"
+          },
+          "mp": {
+            "weixin": "-",
+            "alipay": "-",
+            "toutiao": "-",
+            "baidu": "-",
+            "kuaishou": "-",
+            "jd": "-",
+            "harmony": "-",
+            "qq": "-",
+            "lark": "-"
+          },
+          "quickapp": {
+            "huawei": "-",
+            "union": "-"
+          }
+        },
+        "uni-app-x": {
+          "web": {
+            "safari": "x",
+            "chrome": "x"
+          },
+          "app": {
+            "android": {
+                "extVersion": "",
+                "minVersion": "23"
+            },
+            "ios": "x",
+            "harmony": "x"
+          },
+          "mp": {
+            "weixin": "x"
+          }
+        }
+      },
+      "cloud": {
+        "tcb": "√",
+        "aliyun": "√",
+        "alipay": "√"
+      }
+    }
+  }
+}
