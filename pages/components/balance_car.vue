@@ -1,13 +1,24 @@
 <template>
 	<view class="controls">
-    <view class="connection-tools">
-      <view class="connection-item">
-        <text>蓝牙列表：</text>
-        <uni-data-select v-if="scanSuccess" v-model="value"
-          :localdata="blueToothList"
-          @change="selectDevice"
-        ></uni-data-select>
+    <view v-if="showBluetoothModal" class="bluetooth-modal">
+      <view class="bluetooth-modal__content">
+        <text class="bluetooth-modal__title">请选择蓝牙设备</text>
+        <text v-if="isConnecting" class="bluetooth-modal__status">正在连接...</text>
+        <text v-else-if="!blueToothList.length" class="bluetooth-modal__status">正在搜索蓝牙设备...</text>
+        <view v-else class="bluetooth-device-list">
+          <view
+            v-for="device in blueToothList"
+            :key="device.value"
+            class="bluetooth-device"
+            @tap="selectDevice(device.value)"
+          >
+            <text>{{ device.text }}</text>
+            <text class="bluetooth-device__arrow">连接</text>
+          </view>
+        </view>
       </view>
+    </view>
+    <view class="connection-tools">
       <view class="connection-item">
         <text>连接状态：</text>
         <switch
@@ -17,29 +28,37 @@
           @change="toggleConnection"
         />
       </view>
-      <view class="connection-item speed-control">
-        <text>速度：</text>
-        <slider
-          :value="speed"
-          min="0"
-          max="10"
-          step="2"
-          activeColor="#09BB07"
-          @change="changeSpeed"
+      <view class="connection-item pid-control">
+        <text>行驶速度</text>
+        <uni-number-box
+          v-model="drivingSpeedPid"
+          :min="0"
+          :max="100"
         />
-        <text>{{ speed }}</text>
+      </view>
+      <view class="connection-item pid-control">
+        <text>转向速度</text>
+        <uni-number-box
+          v-model="steeringSpeedPid"
+          :min="0"
+          :max="100"
+        />
       </view>
     </view>
-    <view class="controls_button">
-		  <div class="up" :class="{'buttion-active': direction!= 'forward'}" @touchstart="move($event,'forward')" 
-		   @touchend="move($event,'stop')" ></div>
-		  <div class="down" :class="{'buttion-active': direction!= 'backward'}" @touchstart="move($event,'backward')"
-		   @touchend="move($event,'stop')" ></div>
-		  <div class="left" :class="{'buttion-active': direction!= 'left'}" @touchstart="move($event,'left')" 
-		   @touchend="move($event,'stop')" ></div> 
-		  <div class="right" :class="{'buttion-active': direction!= 'right'}" @touchstart="move($event,'right')" 
-		   @touchend="move($event,'stop')" ></div>
-	  </view>
+    <view class="drive-control-zone">
+      <view class="control-column left-column">
+        <view class="controls_button updown-pad">
+          <view class="up control-button" :class="{'buttion-active': buttonStatus.forwardPressed}" @touchstart="move($event,'forward')" @touchend="move($event,'forward')"></view>
+          <view class="down control-button" :class="{'buttion-active': buttonStatus.backwardPressed}" @touchstart="move($event,'backward')" @touchend="move($event,'backward')"></view>
+        </view>
+      </view>
+      <view class="control-column right-column">
+        <view class="controls_button leftright-pad">
+          <view class="left control-button" :class="{'buttion-active': buttonStatus.leftPressed}" @touchstart="move($event,'left')" @touchend="move($event,'left')"></view>
+          <view class="right control-button" :class="{'buttion-active':  buttonStatus.rightPressed}" @touchstart="move($event,'right')" @touchend="move($event,'right')"></view>
+        </view>
+      </view>
+    </view>
 	</view>
 </template>
 
@@ -50,7 +69,6 @@ export default {
     return {
       value: '',
       checkBluetooth: null,
-      direction: '',
       deviceId: '',
       deviceName: 'JDY-31-SPP',
       serviceId: '',
@@ -60,12 +78,25 @@ export default {
       isConnected: false,
       scanSuccess: false,
       dataType: Object.freeze({
-        direction: 0x01,
+        joystick: 0x32,
         speed: 0x02,
       }),
       speed: 0,
+      drivingSpeedPid: 50,
+      steeringSpeedPid: 50,
+      joystickData:{
+        ax_robot_vx: this.drivingSpeedPid,
+        ax_robot_vw: this.steeringSpeedPid,
+      },
       deviceList: [],
       blueToothList: [],
+      showBluetoothModal: true,
+      buttonStatus:{
+        forwardPressed: false,
+        backwardPressed: false,
+        leftPressed: false,
+        rightPressed: false
+      },
     };
   },
   created() {
@@ -179,6 +210,9 @@ export default {
     },
     selectDevice(index) {
       this.value = index;
+      if (!this.isConnecting && !this.isConnected) {
+        this.connect(index);
+      }
     },
     toggleConnection(event) {
       if (event.detail.value) {
@@ -208,17 +242,13 @@ export default {
       this.deviceId = device.deviceId;
       this.deviceName = device.name || device.localName || '未知设备';
       this.isConnecting = true;
+      this.stopScan();
 
       uni.createBLEConnection({
         deviceId: this.deviceId,
         success: () => {
           this.isConnected = true;
-          this.isConnecting = false;
           console.log('BLE 连接成功');
-      uni.showToast({
-        title: '连接成功',
-        icon: 'success',
-      });
 		  //uni.setBLEMTU({
 		  //    deviceId: this.deviceId,
 		  //    mtu: 23, // 根据硬件支持设置，一般256-512
@@ -246,7 +276,12 @@ export default {
 		                  s.uuid.toUpperCase().includes('FFE0')
 		              ) || services[0];
 		              
-		if (!service) return;
+    if (!service) {
+      this.isConnecting = false;
+      this.isConnected = false;
+      uni.showToast({ title: '未找到蓝牙服务', icon: 'none' });
+      return;
+    }
 		this.serviceId = service.uuid;
         uni.getBLEDeviceCharacteristics({
             deviceId: this.deviceId,
@@ -266,28 +301,41 @@ export default {
               if (readChar) {
                 this.readCharacteristicId = readChar.uuid;
               }
-				setTimeout(() => {
-					this.setDataReceive();
-				}, 	500);
+        if (!writeChar) {
+          uni.showToast({ title: '未找到写入特征', icon: 'none' });
+          this.isConnecting = false;
+          this.isConnected = false;
+          return;
+        }
+        this.sendConnectionFrame();
+        setTimeout(() => {
+          this.setDataReceive();
+        }, 	500);
             },
             fail: (err) => {
               console.error('获取 BLE 特征失败', err);
+			  this.isConnecting = false;
+			  this.isConnected = false;
+			  uni.showToast({ title: '获取蓝牙特征失败', icon: 'none' });
             },
           });
         },
         fail: (err) => {
           console.error('获取 BLE 服务失败', err);
+		  this.isConnecting = false;
+		  this.isConnected = false;
+		  uni.showToast({ title: '获取蓝牙服务失败', icon: 'none' });
         },
       });
     },
     sendData(data, dataType) {
       if (!this.isConnected || !this.deviceId || !this.serviceId || !this.writeCharacteristicId) {
         console.warn('BLE 未准备好，无法发送');	
-        return;
+        return Promise.reject(new Error('BLE 未准备好'));
       }
       if (!Array.isArray(data)) {
         console.warn('BLE 数据必须是数组');
-        return;
+        return Promise.reject(new Error('BLE 数据必须是数组'));
       }
       const frame = new Uint8Array([
         0xAA,
@@ -298,9 +346,24 @@ export default {
       ]);
       frame[2] = frame.length+1;
       const checksum = frame.reduce((sum, byte) => sum + byte, 0) & 0xFF;
-      const dataBuffer = new Uint8Array([...frame, checksum]).buffer;
+      const dataBuffer = new Int8Array([...frame, checksum]).buffer;
     console.info('BLE 发送数据帧:', this.bytesToHex(dataBuffer));
-    this.safeWrite(this.deviceId, this.serviceId, this.writeCharacteristicId, dataBuffer);
+    return this.safeWrite(this.deviceId, this.serviceId, this.writeCharacteristicId, dataBuffer);
+    },
+    sendConnectionFrame() {
+      this.sendData([0x55], 0x30)
+        .then(() => {
+          this.isConnecting = false;
+          this.showBluetoothModal = false;
+          uni.hideLoading();
+          uni.showToast({ title: '连接成功', icon: 'success' });
+        })
+        .catch((error) => {
+          this.isConnecting = false;
+          this.isConnected = false;
+          console.error('蓝牙连接帧发送失败', error);
+          uni.showToast({ title: '连接初始化失败', icon: 'none' });
+        });
     },
   bytesToHex(buffer) {
     return Array.from(new Uint8Array(buffer))
@@ -326,6 +389,7 @@ export default {
 	        await new Promise(r => setTimeout(r, 20));
 	    } catch (e) {
 	        console.error('BLE 写入失败:', e);
+          throw e;
 	    }
 	},
     setDataReceive() {
@@ -414,25 +478,92 @@ export default {
     move(e, direction) {
       e.stopPropagation();
       e.preventDefault();
-      const directionData = {
-        forward: 0x01,
-        backward: 0x02,
-        left: 0x04,
-        right: 0x08,
-        stop: 0x00,
-      };
-      this.direction = direction;
-      this.sendData([directionData[direction] || 0x00], this.dataType.direction);
+      if(e.type === 'touchstart'){ //按钮按下
+         switch(direction){
+          case 'forward': this.buttonStatus.forwardPressed = true;break;
+          case 'backward': this.buttonStatus.backwardPressed = true;break;
+          case 'left': this.buttonStatus.leftPressed = true;break;
+          case 'right': this.buttonStatus.rightPressed = true;break;
+          default: 'stop';
+         } 
+      }else if(e.type === 'touchend'){
+        switch(direction){
+          case 'forward': this.buttonStatus.forwardPressed = false;break;
+          case 'backward': this.buttonStatus.backwardPressed = false;break;
+          case 'left': this.buttonStatus.leftPressed = false;break;
+          case 'right': this.buttonStatus.rightPressed = false;break;
+          default: 'stop';
+         } 
+      }
+      //前进和后退
+      if(this.buttonStatus.forwardPressed){
+        this.joystickData.ax_robot_vx = this.drivingSpeedPid;
+      }else if(this.buttonStatus.backwardPressed){
+        this.joystickData.ax_robot_vx = -this.drivingSpeedPid;
+      }else {
+        this.joystickData.ax_robot_vx = 0x00;
+        this.joystickData.ax_robot_vw = 0x00; 
+      }
+      //左转和右转
+       if(this.buttonStatus.leftPressed){
+        this.joystickData.ax_robot_vw = this.steeringSpeedPid;
+      }else if(this.buttonStatus.rightPressed){
+        this.joystickData.ax_robot_vw = -this.steeringSpeedPid;
+      }else {
+        this.joystickData.ax_robot_vw = 0x00; 
+      }
+      this.sendData([this.joystickData.ax_robot_vx,0x00,0x00,this.joystickData.ax_robot_vw], this.dataType.joystick); //手柄操作
     },
-    changeSpeed(e) {
-      this.speed = e.detail.value;
-      this.sendData([this.speed], this.dataType.speed);
-    }
   },
 };
 </script>
 
 <style scoped>
+  .bluetooth-modal {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .bluetooth-modal__content {
+    width: min(520px, 82vw);
+    max-height: 75vh;
+    padding: 24px;
+    overflow: auto;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  }
+  .bluetooth-modal__title {
+    display: block;
+    margin-bottom: 16px;
+    color: #222222;
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .bluetooth-modal__status {
+    display: block;
+    padding: 24px 0;
+    color: #666666;
+    text-align: center;
+  }
+  .bluetooth-device {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 48px;
+    padding: 0 12px;
+    border-bottom: 1px solid #eeeeee;
+    color: #333333;
+  }
+  .bluetooth-device__arrow {
+    color: #09bb07;
+    font-size: 14px;
+  }
 	.controls {
     display: flex;
     flex-direction: column;
@@ -444,9 +575,32 @@ export default {
   .connection-tools {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 16px;
+    justify-content: flex-start;
     width: 100%;
+  }
+  .drive-control-zone {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    min-height: 220px;
+    padding: 10px 12px 12px;
+    box-sizing: border-box;
+  }
+  .control-column {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 50%;
+    min-height: 200px;
+  }
+  .left-column {
+    justify-content: flex-start;
+    padding-left: 8px;
+  }
+  .right-column {
+    justify-content: flex-end;
+    padding-right: 8px;
   }
   .connection-item {
     display: flex;
@@ -464,49 +618,57 @@ export default {
   .speed-control slider {
     width: 160px;
   }
-	.controls_button{ 
-	  display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-	  width: 220px;
-    height: 220px;
+  .pid-control {
+    white-space: nowrap;
   }
+	.controls_button{ 
+	  display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+	  width: 170px;
+    height: 170px;
+    padding: 12px;
+    border-radius: 36px;
+    background: rgba(255,255,255,0.28);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  }
+	.controls_button .control-button {
+	  display: block;
+	  width: 62px;
+	  height: 62px;
+	  border-radius: 20px;
+	  background-size: cover;
+	  background-position: center;
+	  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.08);
+	  transition: transform 0.12s ease, box-shadow 0.12s ease;
+	}
+	.controls_button .control-button:active,
+	.controls_button .control-button.active,
+	.controls_button .control-button.buttion-active {
+	  transform: scale(0.96);
+	  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.18);
+	}
+	.controls_button.updown-pad {
+	  flex-direction: column;
+	}
+	.controls_button.leftright-pad {
+	  flex-direction: row;
+	}
 	.controls_button .up{
-		border-radius: 15px;
-		grid-column: 2 / 2;
-		grid-row: 1 / 1;
 		background-image: url('/static/front.png');
-		background-size: cover;
-		background-position: center;
 	}
 	.controls_button .down{
-		border-radius: 15px;
-		grid-column: 2 / 2;
-		grid-row: 3 / 3;
 		background-image: url('/static/back.png');
-		background-size: cover;
-		background-position: center;
 	}
 	.controls_button .left{
-		border-radius: 15px;
-		grid-column: 1 / 1;
-		grid-row: 2 / 2;
 		background-image: url('/static/left.png');
-		background-size: cover;
-		background-position: center;
 	}
 	.controls_button .right{
-		border-radius: 15px;
-		grid-column: 3 / 3;
-		grid-row: 2 / 2;
 		background-image: url('/static/right.png');
-		background-size: cover;
-		background-position: center;
 	}
 	.controls_button .stop{
 		border-radius: 50%;
-		grid-column: 2 / 2;
-		grid-row: 2 / 2;
 		background-size: cover;
 		background-position: center;
 		background-color:  #f0f0f0;
@@ -524,6 +686,7 @@ export default {
 		overflow: hidden;
 	}
 	.buttion-active {
-	  box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+	  box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(0,0,0,0.08);
+	  transform: scale(0.96);
 	}
 </style>
