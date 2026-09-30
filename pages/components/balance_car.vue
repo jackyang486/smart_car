@@ -28,6 +28,9 @@
           @change="toggleConnection"
         />
       </view>
+      <view class="settings-button-wrap">
+        <button class="settings-button" type="default" @tap="openSettings">设置</button>
+      </view>
       <view class="connection-item pid-control">
         <text>行驶速度</text>
         <uni-number-box
@@ -43,6 +46,82 @@
           :min="0"
           :max="100"
         />
+      </view>
+    </view>
+    <view v-if="showSettingsModal" class="settings-modal" @tap="closeSettingsModal">
+      <view class="settings-modal__content" @tap.stop>
+        <text class="settings-modal__title">参数设置</text>
+        <view class="settings-grid">
+        <view class="settings-item">
+          <view class="settings-item__label-row">
+            <text>blc_kp</text>
+            <text>{{ blcKp }}</text>
+          </view>
+          <view class="settings-slider-row">
+            <view class="step-button" @tap="adjustSetting('blcKp', -100, 0, 3000, 100)">−</view>
+            <slider :value="blcKp" :min="0" :max="3000" :step="100" class="settings-slider" @change="updateSetting('blcKp', $event, 0, 3000, 100)" />
+            <view class="step-button" @tap="adjustSetting('blcKp', 100, 0, 3000, 100)">＋</view>
+          </view>
+        </view>
+        <view class="settings-item">
+          <view class="settings-item__label-row">
+            <text>blc_kd</text>
+            <text>{{ blcKd }}</text>
+          </view>
+          <view class="settings-slider-row">
+            <view class="step-button" @tap="adjustSetting('blcKd', -10, 0, 500, 10)">−</view>
+            <slider :value="blcKd" :min="0" :max="500" :step="10" class="settings-slider" @change="updateSetting('blcKd', $event, 0, 500, 10)" />
+            <view class="step-button" @tap="adjustSetting('blcKd', 10, 0, 500, 10)">＋</view>
+          </view>
+        </view>
+        <view class="settings-item">
+          <view class="settings-item__label-row">
+            <text>blv_kp</text>
+            <text>{{ blvKp }}</text>
+          </view>
+          <view class="settings-slider-row">
+            <view class="step-button" @tap="adjustSetting('blvKp', -1000, 0, 10000, 1000)">−</view>
+            <slider :value="blvKp" :min="0" :max="10000" :step="1000" class="settings-slider" @change="updateSetting('blvKp', $event, 0, 10000, 1000)" />
+            <view class="step-button" @tap="adjustSetting('blvKp', 1000, 0, 10000, 1000)">＋</view>
+          </view>
+        </view>
+        <view class="settings-item">
+          <view class="settings-item__label-row">
+            <text>blv_ki</text>
+            <text>{{ blvKi }}</text>
+          </view>
+          <view class="settings-slider-row">
+            <view class="step-button" @tap="adjustSetting('blvKi', -500, 0, 5000, 500)">−</view>
+            <slider :value="blvKi" :min="0" :max="5000" :step="500" class="settings-slider" @change="updateSetting('blvKi', $event, 0, 5000, 500)" />
+            <view class="step-button" @tap="adjustSetting('blvKi', 500, 0, 5000, 500)">＋</view>
+          </view>
+        </view>
+        <view class="settings-item">
+          <view class="settings-item__label-row">
+            <text>blt_kp</text>
+            <text>{{ bltKp }}</text>
+          </view>
+          <view class="settings-slider-row">
+            <view class="step-button" @tap="adjustSetting('bltKp', -500, 0, 1000, 500)">−</view>
+            <slider :value="bltKp" :min="100" :max="1000" :step="500" class="settings-slider" @change="updateSetting('bltKp', $event, 0, 1000, 500)" />
+            <view class="step-button" @tap="adjustSetting('bltKp', 500, 0, 1000, 500)">＋</view>
+          </view>
+        </view>
+        <view class="settings-item">
+          <view class="settings-item__label-row">
+            <text>blt_kd</text>
+            <text>{{ bltKd }}</text>
+          </view>
+          <view class="settings-slider-row">
+            <view class="step-button" @tap="adjustSetting('bltKd', -1000, 0, 5000, 1000)">−</view>
+            <slider :value="bltKd" :min="0" :max="5000" :step="1000" class="settings-slider" @change="updateSetting('bltKd', $event, 0, 5000, 1000)" />
+            <view class="step-button" @tap="adjustSetting('bltKd', 1000, 0, 5000, 1000)">＋</view>
+          </view>
+        </view>
+        </view>
+        <view class="settings-actions">
+          <button class="settings-save" type="primary" @tap="saveSettings">保存</button>
+        </view>
       </view>
     </view>
     <view class="drive-control-zone">
@@ -77,9 +156,18 @@ export default {
       isConnecting: false,
       isConnected: false,
       scanSuccess: false,
+      showSettingsModal: false,
+      blcKp: 1500,
+      blcKd: 200,
+      blvKp: 1000,
+      blvKi: 500,
+      bltKp: 100,
+      bltKd: 1000,
       dataType: Object.freeze({
         joystick: 0x32,
-        speed: 0x02,
+        blc: 0x02,
+        blv: 0x03,
+        blt: 0x04,
       }),
       speed: 0,
       drivingSpeedPid: 50,
@@ -101,14 +189,54 @@ export default {
   },
   created() {
     plus.screen.lockOrientation('landscape');
+    this.loadSettingsFromStorage();
     this.initialize();
   },
   computed: {},
   methods: {
     initialize() {
+      this.loadSettingsFromStorage();
       this.requestPermission();
       this.checkBluetoothStatus();
       this.scanDevice();
+    },
+    loadSettingsFromStorage() {
+      try {
+        const saved = uni.getStorageSync('balance_car_settings');
+        if (!saved || typeof saved !== 'object') {
+          return;
+        }
+
+        const settings = [
+          ['blcKp', saved.blc_kp ?? saved.kp, 1000, 3000, 100],
+          ['blcKd', saved.blc_kd ?? saved.kd, 50, 500, 10],
+          ['blvKp', saved.blv_kp, 1000, 10000, 1000],
+          ['blvKi', saved.blv_ki, 500, 5000, 500],
+          ['bltKp', saved.blt_kp, 100, 1000, 500],
+          ['bltKd', saved.blt_kd, 1000, 5000, 1000],
+        ];
+        settings.forEach(([key, value, min, max, step]) => {
+          if (value !== undefined && !Number.isNaN(Number(value))) {
+            this[key] = this.normalizeSetting(value, min, max, step);
+          }
+        });
+      } catch (error) {
+        console.warn('读取本地设置失败', error);
+      }
+    },
+    saveSettingsToStorage() {
+      try {
+        uni.setStorageSync('balance_car_settings', {
+          blc_kp: this.blcKp,
+          blc_kd: this.blcKd,
+          blv_kp: this.blvKp,
+          blv_ki: this.blvKi,
+          blt_kp: this.bltKp,
+          blt_kd: this.bltKd,
+        });
+      } catch (error) {
+        console.warn('保存本地设置失败', error);
+      }
     },
     requestPermission() {
       if (typeof plus === 'undefined' || !plus.android) {
@@ -475,6 +603,56 @@ export default {
       }
       return str;
     },
+    openSettings() {
+      this.showSettingsModal = true;
+    },
+    closeSettingsModal() {
+      this.showSettingsModal = false;
+    },
+    normalizeSetting(value, min, max, step) {
+      const clamped = Math.min(max, Math.max(min, Number(value)));
+      return Math.min(max, min + Math.round((clamped - min) / step) * step);
+    },
+    adjustSetting(key, delta, min, max, step) {
+      this[key] = this.normalizeSetting(this[key] + delta, min, max, step);
+    },
+    updateSetting(key, event, min, max, step) {
+      this[key] = this.normalizeSetting(event.detail.value, min, max, step);
+    },
+    saveSettings() {
+      if (!this.isConnected || !this.deviceId || !this.serviceId || !this.writeCharacteristicId) {
+        uni.showToast({ title: '请先连接蓝牙设备', icon: 'none' });
+        return;
+      }
+
+      const blcKp = this.normalizeSetting(this.blcKp, 1000, 3000, 100);
+      const blcKd = this.normalizeSetting(this.blcKd, 50, 500, 10);
+      const blvKp = this.normalizeSetting(this.blvKp, 1000, 10000, 1000);
+      const blvKi = this.normalizeSetting(this.blvKi, 500, 5000, 500);
+      const bltKp = this.normalizeSetting(this.bltKp, 100, 1000, 500);
+      const bltKd = this.normalizeSetting(this.bltKd, 1000, 5000, 1000);
+      const toBytes = (value) => [(value >> 8) & 0xFF, value & 0xFF];
+
+      Promise.resolve()
+        .then(() => this.sendData([...toBytes(blcKp), ...toBytes(blcKd)], this.dataType.blc))
+        .then(() => this.sendData([...toBytes(blvKp), ...toBytes(blvKi)], this.dataType.blv))
+        .then(() => this.sendData([...toBytes(bltKp), ...toBytes(bltKd)], this.dataType.blt))
+        .then(() => {
+          this.blcKp = blcKp;
+          this.blcKd = blcKd;
+          this.blvKp = blvKp;
+          this.blvKi = blvKi;
+          this.bltKp = bltKp;
+          this.bltKd = bltKd;
+          this.saveSettingsToStorage();
+          this.showSettingsModal = false;
+          uni.showToast({ title: '参数已保存', icon: 'success' });
+        })
+        .catch((error) => {
+          console.error('保存参数失败', error);
+          uni.showToast({ title: '参数保存失败', icon: 'none' });
+        });
+    },
     move(e, direction) {
       e.stopPropagation();
       e.preventDefault();
@@ -506,13 +684,13 @@ export default {
       }
       //左转和右转
        if(this.buttonStatus.leftPressed){
-        this.joystickData.ax_robot_vw = this.steeringSpeedPid;
-      }else if(this.buttonStatus.rightPressed){
         this.joystickData.ax_robot_vw = -this.steeringSpeedPid;
+      }else if(this.buttonStatus.rightPressed){
+        this.joystickData.ax_robot_vw = this.steeringSpeedPid;
       }else {
         this.joystickData.ax_robot_vw = 0x00; 
       }
-      this.sendData([this.joystickData.ax_robot_vx,0x00,0x00,this.joystickData.ax_robot_vw], this.dataType.joystick); //手柄操作
+      this.sendData([this.joystickData.ax_robot_vw,0x00,0x00,this.joystickData.ax_robot_vx], this.dataType.joystick); //手柄操作
     },
   },
 };
@@ -564,6 +742,92 @@ export default {
     color: #09bb07;
     font-size: 14px;
   }
+  .settings-modal {
+    position: fixed;
+    z-index: 1100;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .settings-modal__content {
+    width: min(500px, 86vw);
+    padding: 24px;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  }
+  .settings-modal__title {
+    display: block;
+    margin-bottom: 16px;
+    color: #222222;
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .settings-item {
+    margin-bottom: 18px;
+  }
+  .settings-item__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    color: #333333;
+    font-weight: 600;
+  }
+  .settings-grid {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -8px;
+  }
+  .settings-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .settings-slider {
+    flex: 1;
+    min-width: 0;
+  }
+  .settings-grid .settings-item {
+    width: 50%;
+    padding: 0 8px;
+    box-sizing: border-box;
+  }
+  .step-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #f0f0f0;
+    color: #222222;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .settings-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  .settings-save {
+    width: 100%;
+  }
+  .settings-button-wrap {
+    display: flex;
+    align-items: center;
+  }
+  .settings-button {
+    min-width: 80px;
+    padding: 0 16px;
+    border-radius: 8px;
+    background: #09bb07;
+    color: #ffffff;
+  }
 	.controls {
     display: flex;
     flex-direction: column;
@@ -574,6 +838,7 @@ export default {
 	}
   .connection-tools {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: flex-start;
     width: 100%;
@@ -608,8 +873,14 @@ export default {
     gap: 8px;
   }
   .connection-item:first-child {
-    flex: 1;
-    min-width: 0;
+    width: 50%;
+    flex: none;
+    box-sizing: border-box;
+  }
+  .connection-tools > .settings-button-wrap,
+  .connection-tools > .pid-control {
+    width: 50%;
+    box-sizing: border-box;
   }
   .connection-tools uni-data-select {
     flex: 1;
