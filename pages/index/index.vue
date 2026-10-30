@@ -8,6 +8,7 @@
 			<button :class="{ active: selected === 'car_remote' }" @click="selectOption('car_remote')">监控小车</button>
 			<button :class="{ active: selected === 'electronic_dog' }" @click="selectOption('electronic_dog')">电子宠物狗</button>
 			<button :class="{ active: selected === 'balance_car' }" @click="selectOption('balance_car')">平衡小车</button>
+			<button :class="{ active: selected === 'nes_gamepad' }" @click="selectOption('nes_gamepad')">NES手柄</button>
 	  </div> 
       <input v-model="serverIP" placeholder="输入IP" />
       <input v-model="serverPort" placeholder="输入端口" /> 
@@ -26,6 +27,10 @@
 	  :connected.sync="connected" 
 	  ></electronic_dog>		
 	  <balance_car v-if="connected && selected === 'balance_car'" ></balance_car>
+	  <nes_gamepad v-if="connected && selected === 'nes_gamepad'"
+	  :moe-tcp-client.sync="moeTcpClient"
+	  :connected.sync="connected"
+	  ></nes_gamepad>
 	</uni-section>
   </div>
 </template>
@@ -34,9 +39,10 @@
 import remote_car from '@/pages/components/remote_car.vue';
 import balance_car from '@/pages/components/balance_car.vue';
 import electronic_dog from '@/pages/components/electronic_dog.vue';
+import nes_gamepad from '@/pages/components/nes_gamepad.vue';
 export default { 
   name: 'WifiCarRemote',
-  components: {remote_car,electronic_dog,balance_car},
+  components: {remote_car,electronic_dog,balance_car,nes_gamepad},
   data() {
     return {
       serverIP: '', // ESP8266 IP
@@ -139,7 +145,9 @@ export default {
 
 .radio-button{
 	display: flex;
-	flex-direction: row;	
+	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: center;
 }
 button {
   border: 1px solid #ccc; /* 边框 */
